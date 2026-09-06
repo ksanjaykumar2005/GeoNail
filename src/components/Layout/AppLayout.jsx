@@ -17,6 +17,7 @@ import { RiskAnalysisPage } from '../../pages/RiskAnalysis/RiskAnalysisPage';
 import { AlertsPage } from '../../pages/Alerts/AlertsPage';
 import { ExportPage } from '../../pages/Export/ExportPage';
 import { SystemHealthPage } from '../../pages/SystemHealth/SystemHealthPage';
+import { ErrorBoundary } from '../ErrorBoundary/ErrorBoundary';
 
 export function AppLayout() {
   const {
@@ -44,15 +45,17 @@ export function AppLayout() {
           />
         )}
 
-        {/* Active Page View */}
+        {/* Active Page View Protected by ErrorBoundary */}
         <main className="flex-1 overflow-hidden flex flex-col">
-          {currentView === 'command-center' && <CommandCenter onViewChange={setCurrentView} />}
-          {currentView === 'digital-twin' && <DigitalTwinPage />}
-          {currentView === 'telemetry' && <TelemetryPage />}
-          {currentView === 'risk-analysis' && <RiskAnalysisPage />}
-          {currentView === 'alerts' && <AlertsPage />}
-          {currentView === 'export' && <ExportPage />}
-          {currentView === 'system-health' && <SystemHealthPage />}
+          <ErrorBoundary key={currentView}>
+            {currentView === 'command-center' && <CommandCenter onViewChange={setCurrentView} />}
+            {currentView === 'digital-twin' && <DigitalTwinPage />}
+            {currentView === 'telemetry' && <TelemetryPage />}
+            {currentView === 'risk-analysis' && <RiskAnalysisPage />}
+            {currentView === 'alerts' && <AlertsPage />}
+            {currentView === 'export' && <ExportPage />}
+            {currentView === 'system-health' && <SystemHealthPage />}
+          </ErrorBoundary>
         </main>
       </div>
     </div>

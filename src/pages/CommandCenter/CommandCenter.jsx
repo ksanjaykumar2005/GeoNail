@@ -12,7 +12,7 @@ import { GISMap } from '../../components/GISMap/GISMap';
 import { RiskEnginePanel } from '../../components/RiskPanel/RiskEnginePanel';
 import { MineScene } from '../../three/MineScene';
 import { formatDecimal } from '../../utils/formatters';
-import { Play, Pause, RotateCcw, Map, Box, Radio } from 'lucide-react';
+import { Play, Pause, RotateCcw, Map, Box, Radio, BellRing } from 'lucide-react';
 
 export function CommandCenter({ onViewChange }) {
   const {

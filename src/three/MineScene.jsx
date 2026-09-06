@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { Terrain } from './Terrain';
 import { MinePanel } from './MinePanel';
 import { SensorStake } from './SensorStake';
+import { ErrorBoundary } from '../components/ErrorBoundary/ErrorBoundary';
 
 function CameraController({ viewMode }) {
   const { camera } = useThree();
@@ -60,60 +61,62 @@ export function MineScene({
 
   return (
     <div className="w-full h-full relative bg-[#F1F5F9] select-none overflow-hidden">
-      <Canvas
-        shadows
-        gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
-        onCreated={({ gl }) => {
-          gl.setClearColor(new THREE.Color('#F1F5F9'));
-        }}
-      >
-        <PerspectiveCamera makeDefault position={[45, 38, 48]} fov={45} />
-        <CameraController viewMode={cameraView} />
+      <ErrorBoundary>
+        <Canvas
+          shadows
+          gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
+          onCreated={({ gl }) => {
+            gl.setClearColor(new THREE.Color('#F1F5F9'));
+          }}
+        >
+          <PerspectiveCamera makeDefault position={[45, 38, 48]} fov={45} />
+          <CameraController viewMode={cameraView} />
 
-        {/* Natural Studio Lighting Setup */}
-        <ambientLight intensity={0.85} color="#FFFFFF" />
-        <directionalLight
-          position={[40, 60, 35]}
-          intensity={1.1}
-          castShadow
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-          color="#FFFDF7"
-        />
-        <directionalLight position={[-30, 25, -30]} intensity={0.45} color="#CBD5E1" />
-        <directionalLight position={[0, -20, 20]} intensity={0.25} color="#E2E8F0" />
-
-        {/* Surface Ground & Procedural Subsidence Bowl */}
-        <Terrain
-          nodes={nodes}
-          activeTelemetryMap={activeTelemetryMap}
-          subsidenceSeverity={subsidenceSeverity}
-          showSubsidenceBowl={true}
-          showRiskHeatmap={showHeatmap}
-          isHardware={isHardware}
-        />
-
-        {/* Underground Extraction Zone Cutaway (-120m) */}
-        <MinePanel showLabels={showLabels} />
-
-        {/* Physical Sensor Stakes */}
-        {nodes.map(node => (
-          <SensorStake
-            key={node.node_id}
-            node={node}
-            telemetry={activeTelemetryMap[node.node_id]}
-            isSelected={node.node_id === selectedNodeId}
-            onClick={onSelectNode}
-            showLabels={showLabels}
+          {/* Natural Studio Lighting Setup */}
+          <ambientLight intensity={0.85} color="#FFFFFF" />
+          <directionalLight
+            position={[40, 60, 35]}
+            intensity={1.1}
+            castShadow
+            shadow-mapSize-width={1024}
+            shadow-mapSize-height={1024}
+            color="#FFFDF7"
           />
-        ))}
+          <directionalLight position={[-30, 25, -30]} intensity={0.45} color="#CBD5E1" />
+          <directionalLight position={[0, -20, 20]} intensity={0.25} color="#E2E8F0" />
 
-        {/* Sub-Surface Reference Grid */}
-        <gridHelper
-          args={[120, 24, '#94A3B8', '#CBD5E1']}
-          position={[0, -13.5, 0]}
-        />
-      </Canvas>
+          {/* Surface Ground & Procedural Subsidence Bowl */}
+          <Terrain
+            nodes={nodes}
+            activeTelemetryMap={activeTelemetryMap}
+            subsidenceSeverity={subsidenceSeverity}
+            showSubsidenceBowl={true}
+            showRiskHeatmap={showHeatmap}
+            isHardware={isHardware}
+          />
+
+          {/* Underground Extraction Zone Cutaway (-120m) */}
+          <MinePanel showLabels={showLabels} />
+
+          {/* Physical Sensor Stakes */}
+          {nodes.map(node => (
+            <SensorStake
+              key={node.node_id}
+              node={node}
+              telemetry={activeTelemetryMap[node.node_id]}
+              isSelected={node.node_id === selectedNodeId}
+              onClick={onSelectNode}
+              showLabels={showLabels}
+            />
+          ))}
+
+          {/* Sub-Surface Reference Grid */}
+          <gridHelper
+            args={[120, 24, '#94A3B8', '#CBD5E1']}
+            position={[0, -13.5, 0]}
+          />
+        </Canvas>
+      </ErrorBoundary>
 
       {/* Hardware Disconnected Overlay */}
       {isHardware && !hasData && (
