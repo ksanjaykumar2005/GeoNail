@@ -15,7 +15,7 @@ export async function fetchHealth() {
     return await res.json();
   } catch (err) {
     console.warn('[API] Health fetch failed:', err.message);
-    return { status: 'OFFLINE', gateway_id: 'GW-01', active_nodes: 8, lora_connected: false };
+    return { status: 'OFFLINE', gateway_id: 'GW-01', active_nodes: 0, is_hardware_connected: false };
   }
 }
 
