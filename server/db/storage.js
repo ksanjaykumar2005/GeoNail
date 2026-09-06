@@ -113,15 +113,21 @@ class TimescaleStorageEngine {
   }
 
   // HARDWARE TELEMETRY METHODS (Real data only)
-  getLatestHardwareTelemetry(nodeId = null) {
+  getLatestHardwareTelemetry(nodeId = null, heartbeatTimeoutMs = 45000) {
+    const now = Date.now();
     if (this.hardwareTelemetryStore.length === 0) {
       return null;
     }
 
     if (nodeId) {
       for (let i = this.hardwareTelemetryStore.length - 1; i >= 0; i--) {
-        if (this.hardwareTelemetryStore[i].node_id === nodeId) {
-          return this.hardwareTelemetryStore[i];
+        const rec = this.hardwareTelemetryStore[i];
+        if (rec.node_id === nodeId) {
+          const age = now - new Date(rec.timestamp).getTime();
+          if (age <= heartbeatTimeoutMs && rec.source === 'hardware') {
+            return rec;
+          }
+          return null; // Stale or not real hardware
         }
       }
       return null;
@@ -130,15 +136,18 @@ class TimescaleStorageEngine {
     const latestMap = {};
     for (let i = this.hardwareTelemetryStore.length - 1; i >= 0; i--) {
       const rec = this.hardwareTelemetryStore[i];
-      if (!latestMap[rec.node_id]) {
-        latestMap[rec.node_id] = rec;
+      const age = now - new Date(rec.timestamp).getTime();
+      if (age <= heartbeatTimeoutMs && rec.source === 'hardware') {
+        if (!latestMap[rec.node_id]) {
+          latestMap[rec.node_id] = rec;
+        }
       }
     }
     return Object.values(latestMap);
   }
 
   getHardwareHistory(nodeId = null, startTime = null, endTime = null, limit = 200) {
-    let filtered = this.hardwareTelemetryStore;
+    let filtered = this.hardwareTelemetryStore.filter(r => r.source === 'hardware');
     if (filtered.length === 0) return [];
 
     if (nodeId) {
@@ -159,6 +168,8 @@ class TimescaleStorageEngine {
   insertHardwareTelemetry(record) {
     const validated = {
       id: this.hardwareTelemetryStore.length + 1,
+      source: 'hardware',
+      is_demo: false,
       timestamp: record.timestamp || new Date().toISOString(),
       node_id: record.node_id,
       tilt_x: record.tilt_x !== undefined ? Number(record.tilt_x) : null,
@@ -236,6 +247,7 @@ class TimescaleStorageEngine {
       sms_status: alertData.sms_status || 'NOT CONFIGURED',
       siren_status: alertData.siren_status || 'TRIGGERED',
       message: alertData.message || 'Critical Subsidence Alert',
+      is_demo: Boolean(alertData.is_demo),
       acknowledged: false
     };
 
@@ -248,25 +260,26 @@ class TimescaleStorageEngine {
     const lastTimeMs = this.gatewayStatus.last_hardware_packet_time
       ? new Date(this.gatewayStatus.last_hardware_packet_time).getTime()
       : null;
-    const isLive = Boolean(lastTimeMs !== null && (now - lastTimeMs) < heartbeatTimeoutMs);
+    const isLive = Boolean(lastTimeMs !== null && (now - lastTimeMs) <= heartbeatTimeoutMs);
 
-    // Count nodes that received telemetry within the heartbeat window
+    // Count nodes that received telemetry strictly from real hardware within the heartbeat window
     const activeHardwareNodes = new Set();
     if (isLive) {
       for (let i = this.hardwareTelemetryStore.length - 1; i >= 0; i--) {
         const p = this.hardwareTelemetryStore[i];
-        if (now - new Date(p.timestamp).getTime() < heartbeatTimeoutMs) {
+        if (p.source === 'hardware' && (now - new Date(p.timestamp).getTime()) <= heartbeatTimeoutMs) {
           activeHardwareNodes.add(p.node_id);
-        } else {
-          break;
         }
       }
     }
 
     return {
-      ...this.gatewayStatus,
+      gateway_id: this.gatewayStatus.gateway_id || 'GW-01',
+      zone_name: this.gatewayStatus.zone_name || 'Extraction Zone',
       is_hardware_connected: isLive,
-      active_hardware_nodes_count: activeHardwareNodes.size,
+      last_hardware_packet_time: isLive ? this.gatewayStatus.last_hardware_packet_time : null,
+      total_hardware_packets: this.gatewayStatus.total_hardware_packets,
+      active_hardware_nodes_count: isLive ? activeHardwareNodes.size : 0,
       active_nodes: isLive ? activeHardwareNodes.size : 0,
       current_time: new Date().toISOString()
     };

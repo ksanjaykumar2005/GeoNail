@@ -109,21 +109,39 @@ export function TelemetryProvider({ children }) {
   const refreshHardwareState = useCallback(async () => {
     try {
       const health = await fetchHealth();
+      const isLive = Boolean(health?.is_hardware_connected);
+      const lastPacket = isLive ? health?.last_hardware_packet_time : null;
+
       setHardwareGatewayStatus({
         gateway_id: health?.gateway_id || 'GW-01',
-        is_connected: Boolean(health?.is_hardware_connected),
-        last_packet_time: health?.last_hardware_packet_time || null,
-        total_packets: health?.total_hardware_packets || 0
+        is_connected: isLive,
+        last_packet_time: lastPacket,
+        total_packets: isLive ? (health?.total_hardware_packets || 0) : 0
       });
 
-      const latest = await fetchLatestTelemetry();
-      if (latest && Array.isArray(latest) && latest.length > 0) {
-        const map = {};
-        latest.forEach(r => { map[r.node_id] = r; });
-        setHardwareTelemetryMap(map);
-      } else if (latest && latest.node_id) {
-        setHardwareTelemetryMap({ [latest.node_id]: latest });
+      if (isLive) {
+        const latest = await fetchLatestTelemetry();
+        if (latest && Array.isArray(latest) && latest.length > 0) {
+          const map = {};
+          latest.forEach(r => {
+            const age = Date.now() - new Date(r.timestamp).getTime();
+            if (age <= 45000 && r.source !== 'demo' && !r.is_demo) {
+              map[r.node_id] = r;
+            }
+          });
+          setHardwareTelemetryMap(map);
+        } else if (latest && latest.node_id) {
+          const age = Date.now() - new Date(latest.timestamp).getTime();
+          if (age <= 45000 && latest.source !== 'demo' && !latest.is_demo) {
+            setHardwareTelemetryMap({ [latest.node_id]: latest });
+          } else {
+            setHardwareTelemetryMap({});
+          }
+        } else {
+          setHardwareTelemetryMap({});
+        }
       } else {
+        // Disconnected or stale: strictly empty hardware telemetry
         setHardwareTelemetryMap({});
       }
 
@@ -133,7 +151,43 @@ export function TelemetryProvider({ children }) {
       }
     } catch (err) {
       console.warn('[TelemetryContext] Hardware refresh error:', err);
+      setHardwareGatewayStatus({
+        gateway_id: 'GW-01',
+        is_connected: false,
+        last_packet_time: null,
+        total_packets: 0
+      });
+      setHardwareTelemetryMap({});
     }
+  }, []);
+
+  // Periodic heartbeat watchdog to enforce 45s hardware freshness
+  useEffect(() => {
+    const watchdogTimer = setInterval(() => {
+      setHardwareTelemetryMap(prev => {
+        const now = Date.now();
+        let hasStale = false;
+        const fresh = {};
+        Object.entries(prev).forEach(([nodeId, rec]) => {
+          if (rec && rec.timestamp && (now - new Date(rec.timestamp).getTime() <= 45000)) {
+            fresh[nodeId] = rec;
+          } else {
+            hasStale = true;
+          }
+        });
+
+        if (hasStale && Object.keys(fresh).length === 0) {
+          setHardwareGatewayStatus(s => ({
+            ...s,
+            is_connected: false,
+            last_packet_time: null
+          }));
+        }
+        return hasStale ? fresh : prev;
+      });
+    }, 3000);
+
+    return () => clearInterval(watchdogTimer);
   }, []);
 
   useEffect(() => {
@@ -144,30 +198,45 @@ export function TelemetryProvider({ children }) {
     const unsubscribe = wsClient.subscribe((data) => {
       if (data.type === 'TELEMETRY_UPDATE') {
         const record = data.payload;
-        if (record && record.node_id) {
-          setHardwareTelemetryMap(prev => ({ ...prev, [record.node_id]: record }));
-          setHardwareHistoryMap(prev => {
-            const list = prev[record.node_id] ? [...prev[record.node_id]] : [];
-            list.push(record);
-            if (list.length > 60) list.shift();
-            return { ...prev, [record.node_id]: list };
-          });
-          setHardwareGatewayStatus(prev => ({
-            ...prev,
-            is_connected: true,
-            last_packet_time: record.timestamp,
-            total_packets: prev.total_packets + 1
-          }));
+        if (record && record.node_id && record.source !== 'demo' && !record.is_demo) {
+          const age = Date.now() - new Date(record.timestamp).getTime();
+          if (age <= 45000) {
+            setHardwareTelemetryMap(prev => ({ ...prev, [record.node_id]: record }));
+            setHardwareHistoryMap(prev => {
+              const list = prev[record.node_id] ? [...prev[record.node_id]] : [];
+              list.push(record);
+              if (list.length > 60) list.shift();
+              return { ...prev, [record.node_id]: list };
+            });
+            setHardwareGatewayStatus(prev => ({
+              ...prev,
+              is_connected: true,
+              last_packet_time: record.timestamp,
+              total_packets: prev.total_packets + 1
+            }));
+          }
         }
       } else if (data.type === 'ALERT_DISPATCHED') {
-        setActiveCriticalAlert(data.payload);
-        setAlerts(prev => [data.payload, ...prev]);
+        const alertRecord = data.payload;
+        if (alertRecord) {
+          setActiveCriticalAlert(alertRecord);
+          setAlerts(prev => [alertRecord, ...prev]);
+        }
       }
     });
 
     return () => {
       unsubscribe();
     };
+  }, [refreshHardwareState]);
+
+  // Handle explicit mode switching with instant state isolation
+  const handleSetDataSource = useCallback((newSource) => {
+    setDataSource(newSource);
+    if (newSource === 'HARDWARE') {
+      setActiveCriticalAlert(null);
+      refreshHardwareState();
+    }
   }, [refreshHardwareState]);
 
   // Demo simulator controls
@@ -191,7 +260,7 @@ export function TelemetryProvider({ children }) {
   // Hardware injection function (for testing)
   const injectHardwareTelemetry = useCallback(async (packet) => {
     try {
-      const res = await postHardwareTelemetry(packet);
+      const res = await postHardwareTelemetry({ ...packet, source: 'hardware', is_demo: false });
       await refreshHardwareState();
       return res;
     } catch (err) {
@@ -318,7 +387,7 @@ export function TelemetryProvider({ children }) {
 
   const value = {
     dataSource,
-    setDataSource,
+    setDataSource: handleSetDataSource,
     nodes: nodesWithStatus,
     selectedNodeId,
     setSelectedNodeId,
