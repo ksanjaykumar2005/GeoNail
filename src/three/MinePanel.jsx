@@ -109,7 +109,7 @@ export function MinePanel({ showLabels = true, showPlumbLines = true }) {
         <Html position={[0, panelHeight / 2 + 1.4, 0]} center distanceFactor={32} style={{ pointerEvents: 'none' }}>
           <div className="px-3 py-1.5 bg-slate-900/95 border border-cyan-500/60 rounded-md shadow-2xl text-[10px] font-mono text-cyan-400 whitespace-nowrap text-center backdrop-blur-md">
             <div className="font-bold tracking-wider text-cyan-300">UNDERGROUND EXTRACTION ZONE</div>
-            <div className="text-slate-400 text-[9px]">Target Seam VII Depth: -120m • Active Goaf Void</div>
+            <div className="text-slate-400 text-[9px]">Underground Extraction Depth: -120m • Active Goaf Void</div>
           </div>
         </Html>
       )}
