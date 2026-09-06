@@ -11,15 +11,35 @@ class WebSocketClient {
     this.isConnected = false;
   }
 
+  getWsUrl() {
+    if (import.meta.env.VITE_WS_URL) {
+      return import.meta.env.VITE_WS_URL;
+    }
+
+    if (import.meta.env.VITE_API_URL) {
+      const apiUrl = import.meta.env.VITE_API_URL.trim();
+      const wsProto = apiUrl.startsWith('https:') ? 'wss:' : 'ws:';
+      const cleanHost = apiUrl.replace(/^https?:\/\//, '').replace(/\/api\/?$/, '').replace(/\/$/, '');
+      return `${wsProto}//${cleanHost}/ws`;
+    }
+
+    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const protocol = isHttps ? 'wss:' : 'ws:';
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+    
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return `${protocol}//${hostname}:3001/ws`;
+    }
+
+    return `${protocol}//${window.location.host}/ws`;
+  }
+
   connect() {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname;
-    // Connect to backend ws on port 3001 in dev or current port if proxied
-    const wsUrl = `${protocol}//${host}:3001/ws`;
+    const wsUrl = this.getWsUrl();
 
     try {
       this.ws = new WebSocket(wsUrl);

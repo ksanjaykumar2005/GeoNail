@@ -3,7 +3,10 @@
  * Abstraction layer connecting the React UI to backend REST endpoints.
  */
 
-const API_BASE = '/api';
+const rawApiUrl = import.meta.env.VITE_API_URL || '';
+const API_BASE = rawApiUrl
+  ? (rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/$/, '')}/api`)
+  : '/api';
 
 export async function fetchHealth() {
   try {

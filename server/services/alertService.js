@@ -14,7 +14,6 @@ class AlertService {
       process.env.SMTP_USER &&
       process.env.SMTP_PASS &&
       process.env.SMTP_USER !== 'geonail.alerts@gmail.com' &&
-      process.env.SMTP_USER !== 'mineguard.alerts@gmail.com' &&
       process.env.SMTP_PASS !== 'your_app_password_here'
     );
 

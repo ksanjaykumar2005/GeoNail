@@ -1,5 +1,5 @@
 /**
- * MineGuard Real-Time WebSocket Gateway
+ * GeoNail Real-Time WebSocket Gateway
  * Handles live bi-directional communication between backend and React command center.
  */
 
@@ -23,7 +23,7 @@ class WebSocketGateway {
         type: 'CONNECTION_ACK',
         timestamp: new Date().toISOString(),
         gateway_id: 'GW-01',
-        protocol: 'MINEGUARD-WS-V1'
+        protocol: 'GEONAIL-WS-V1'
       }));
 
       ws.on('message', (message) => {
